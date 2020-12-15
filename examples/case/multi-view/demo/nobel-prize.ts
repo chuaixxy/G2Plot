@@ -1,11 +1,22 @@
+// @ts-nocheck
 import { DataView } from '@antv/data-set';
 import { Lab } from '@antv/g2plot';
 import { keys, groupBy } from '@antv/util';
 
-fetch('https://gw.alipayobjects.com/os/bmw-prod/738147f2-2cef-4591-8e0d-4fd5268c2e0a.json')
+function generateYearData() {
+  const r = [];
+  for (let i = 1900; i <= 2016; i++) {
+    r.push({ year: i });
+  }
+  return r;
+}
+
+fetch('https://gw.alipayobjects.com/os/antfincdn/4%26Ms6eAd%24y/nobel-prize-data.json')
   .then((data) => data.json())
-  .then((data: any[]) => {
+  .then((originalData) => {
+    const data = [{ year: 1900, number: 0 }, ...originalData.main, { year: 2016, number: 0 }];
     let currentYear = 1901;
+
     const types = keys(groupBy(data, (d) => d.type));
     /** 散点图数据（各国诺贝尔奖获奖者的年龄分布） */
     const getPointViewData = (year) => {
@@ -24,29 +35,8 @@ fetch('https://gw.alipayobjects.com/os/bmw-prod/738147f2-2cef-4591-8e0d-4fd5268c
       });
       return [...ds.rows, { type: 'other', counts: othersCnt }];
     };
-    const getDataGroupByField = (field) => {
-      const transformData = [...data];
-      for (let i = 1901; i < 2016; i++) {
-        if (!data.find((d) => d.year === i)) {
-          transformData.push({
-            year: i,
-            number: 0,
-            name: '',
-            nickName: '',
-            age: 0,
-            country: '',
-            about: '',
-            type: '',
-            avatar: '',
-          });
-        }
-      }
-      return new DataView()
-        .source(transformData)
-        .transform({ type: 'group', groupBy: [field] })
-        .rows.map((d) => ({ [field]: d[0][field] }));
-    };
 
+    const yearData = generateYearData();
     const labChart = new Lab.MultiView('container', {
       height: 500,
       padding: 'auto',
@@ -60,7 +50,7 @@ fetch('https://gw.alipayobjects.com/os/bmw-prod/738147f2-2cef-4591-8e0d-4fd5268c
           region: { start: { x: 0, y: 0.35 }, end: { x: 1, y: 0.65 } },
           coordinate: {
             type: 'theta',
-            cfg: { innerRadius: 0.78, radius: 0.96 },
+            cfg: { innerRadius: 0.84, radius: 0.96 },
           },
           geometries: [
             {
@@ -76,6 +66,18 @@ fetch('https://gw.alipayobjects.com/os/bmw-prod/738147f2-2cef-4591-8e0d-4fd5268c
                 },
               },
               adjust: { type: 'stack' },
+            },
+          ],
+          annotations: [
+            {
+              type: 'text',
+              content: 'G2Plot',
+              position: ['50%', '50%'],
+              style: {
+                textAlign: 'center',
+                fontWeight: 400,
+                fontSize: 28,
+              },
             },
           ],
         },
@@ -131,7 +133,7 @@ fetch('https://gw.alipayobjects.com/os/bmw-prod/738147f2-2cef-4591-8e0d-4fd5268c
         },
         {
           // 国家展示
-          data: getDataGroupByField('country'),
+          data: originalData.country,
           region: { start: { x: 0.18, y: 0.18 }, end: { x: 0.82, y: 0.82 } },
           coordinate: { type: 'polar', cfg: { innerRadius: 0.99, radius: 1 } },
           geometries: [
@@ -154,7 +156,7 @@ fetch('https://gw.alipayobjects.com/os/bmw-prod/738147f2-2cef-4591-8e0d-4fd5268c
         },
         {
           // 年度 label 展示
-          data: getDataGroupByField('year'),
+          data: yearData,
           region: {
             start: { x: 0.05, y: 0.05 },
             end: { x: 0.95, y: 0.95 },
@@ -179,7 +181,13 @@ fetch('https://gw.alipayobjects.com/os/bmw-prod/738147f2-2cef-4591-8e0d-4fd5268c
               label: {
                 labelEmit: true,
                 content: ({ year }) => {
-                  return year === 1901 || Number(year) % 10 === 0 ? year : year === 2015 ? '' : '-';
+                  if (year === 1900) {
+                    return ' ALL';
+                  }
+                  if (year === 2016) {
+                    return '';
+                  }
+                  return year === 1901 || Number(year) % 10 === 0 ? year : '-';
                 },
               },
               mapping: {
@@ -190,7 +198,7 @@ fetch('https://gw.alipayobjects.com/os/bmw-prod/738147f2-2cef-4591-8e0d-4fd5268c
         },
         {
           // 滑块
-          data: getDataGroupByField('year'),
+          data: yearData,
           region: {
             start: { x: 0.05, y: 0.05 },
             end: { x: 0.95, y: 0.95 },
@@ -213,17 +221,18 @@ fetch('https://gw.alipayobjects.com/os/bmw-prod/738147f2-2cef-4591-8e0d-4fd5268c
                 labelEmit: true,
                 fields: ['year'],
                 callback: (year) => {
+                  const { defaultColor } = labChart.chart.getTheme();
                   return {
                     style: {
                       fill: year === currentYear ? 'rgba(255,255,255,0.85)' : 'transparent',
                     },
-                    content: () => `${currentYear}`,
+                    content: () => `${currentYear === 2016 ? ' ALL' : currentYear}`,
                     background: {
                       padding: 2,
                       // @ts-ignore
                       radius: 2,
                       style: {
-                        fill: year === currentYear ? 'pink' : 'transparent',
+                        fill: year === currentYear ? defaultColor : 'transparent',
                       },
                     },
                   };
@@ -255,28 +264,31 @@ fetch('https://gw.alipayobjects.com/os/bmw-prod/738147f2-2cef-4591-8e0d-4fd5268c
     function rerender(y) {
       labChart.chart.views[0].changeData(getIntervalViewData(y));
       labChart.chart.views[1].changeData(getPointViewData(y));
-      dymaticView.geometries[0].label('year', (year) => ({
-        labelEmit: true,
-        style: {
-          fill: year === y ? 'rgba(255,255,255,0.85)' : 'transparent',
-        },
-        content: () => `${y}`,
-        background: {
-          padding: 2,
-          // @ts-ignore
-          radius: 2,
+      dymaticView.geometries[0].label('year', (year) => {
+        const { defaultColor } = labChart.chart.getTheme();
+        return {
+          labelEmit: true,
           style: {
-            fill: year === y ? 'pink' : 'transparent',
+            fill: year === y ? 'rgba(255,255,255,0.85)' : 'transparent',
           },
-        },
-      }));
+          content: () => `${y === 2016 ? ' ALL' : y}`,
+          background: {
+            padding: 2,
+            // @ts-ignore
+            radius: 2,
+            style: {
+              fill: year === y ? defaultColor : 'transparent',
+            },
+          },
+        };
+      });
       dymaticView.render(true);
     }
 
     let interval;
     function start() {
       interval = setInterval(() => {
-        if (currentYear < 2016) {
+        if (currentYear !== 1900 && currentYear < 2016) {
           currentYear += 1;
           rerender(currentYear);
         } else {
@@ -290,14 +302,4 @@ fetch('https://gw.alipayobjects.com/os/bmw-prod/738147f2-2cef-4591-8e0d-4fd5268c
     }
 
     start();
-    // 延迟绑定事件
-    setTimeout(() => {
-      document.querySelector('#btn').addEventListener('click', () => {
-        if (!interval) {
-          start();
-        } else {
-          end();
-        }
-      });
-    }, 500);
   });
